@@ -1,6 +1,17 @@
 ###### Copyright © 2025 Code Jackal | Original Course Material by Chris Blakely
 
 ---
+# Attribution
+
+This project is based on the Java/Spring Microservices project by **Chris Blakely**, created as part of his Java/Spring Microservices course.
+
+Original repository:
+https://github.com/chrisblakely01/java-spring-microservices
+
+The original project and application code are credited to Chris Blakely. This repository is my independent implementation and learning project, where I am extending the project from a DevOps perspective, including containerization, deployment, infrastructure, CI/CD, observability, and cloud infrastructure.
+
+All original work remains attributed to its original author.
+
 # Join the Discord Community
 
 This source code is for the Java/Spring microservices course available on my 
