@@ -416,3 +416,30 @@ WHERE NOT EXISTS (
 ```
 POSTGRES_DB=db;POSTGRES_PASSWORD=password;POSTGRES_USER=admin_user
 ```
+
+
+your_auth_secure_password
+your_patient_secure_password
+
+
+
+export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:5433/patient_service_db"
+export SPRING_DATASOURCE_USERNAME="patient_service"
+export SPRING_DATASOURCE_PASSWORD="your_patient_secure_password"
+export SPRING_JPA_HIBERNATE_DDL_AUTO="update"
+export SPRING_SQL_INIT_MODE="always"
+
+
+export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:5433/auth_service_db"
+export SPRING_DATASOURCE_USERNAME="auth_service"
+export SPRING_DATASOURCE_PASSWORD="your_auth_secure_password"
+export SPRING_JPA_HIBERNATE_DDL_AUTO="update"
+export SPRING_SQL_INIT_MODE="always"
+export JWT_SECRET='xGv645JNn42W/AbOAYWYfB7+byo4Km9734O7iDWIpnWKdJCJdgr2RGXteXbDiapHQAdlBrExgiuS7ufSYpd+nA=='
+
+
+ ./mvnw spring-boot:run
+
+ export JAVA_TOOL_OPTIONS="-javaagent:/opt/opentelemetry/opentelemetry-javaagent.jar"
+
+ export AUTH_SERVICE_URL="http://127.0.0.1:4005"
