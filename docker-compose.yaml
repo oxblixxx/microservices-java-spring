@@ -1,0 +1,93 @@
+services:
+  api-gateway:
+    container_name: api-gateway
+    image: api-gateway:v4
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      AUTH_SERVICE_URL: http://auth-service:4005
+    ports:
+      - "4004:4004"
+    networks:
+      - backend-api
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      patient-service:
+        condition: service_healthy
+      billing-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/actuator/health"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  patient-service:
+    container_name: patient-service
+    image: patient-service:v2
+    environment:
+      PATIENT_SPRING_DATASOURCE_URL: "${PATIENT_SPRING_DATASOURCE_URL}"
+      PATIENT_SPRING_DATASOURCE_USERNAME: "${PATIENT_SPRING_DATASOURCE_USERNAME}"
+      PATIENT_SPRING_DATASOURCE_PASSWORD: "${PATIENT_SPRING_DATASOURCE_PASSWORD}"
+      PATIENT_SPRING_JPA_HIBERNATE_DDL_AUTO: "${PATIENT_SPRING_JPA_HIBERNATE_DDL_AUTO}"
+      PATIENT_SPRING_SQL_INIT_MODE: "${PATIENT_SPRING_SQL_INIT_MODE}"
+    networks:
+      - backend-api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/actuator/health"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  auth-service:
+    container_name: auth-service
+    image: auth-service:v3
+    environment:
+      AUTH_SPRING_DATASOURCE_URL: "${AUTH_SPRING_DATASOURCE_URL}"
+      AUTH_SPRING_DATASOURCE_USERNAME: "${AUTH_SPRING_DATASOURCE_USERNAME}"
+      AUTH_SPRING_DATASOURCE_PASSWORD: "${AUTH_SPRING_DATASOURCE_PASSWORD}"
+      AUTH_SPRING_JPA_HIBERNATE_DDL_AUTO: "${AUTH_SPRING_JPA_HIBERNATE_DDL_AUTO}"
+      AUTH_SPRING_SQL_INIT_MODE: "${AUTH_SPRING_SQL_INIT_MODE}"
+      JWT_SECRET: "${JWT_SECRET}"
+    networks:
+      - backend-api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4005/actuator/health"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  analytics-service:
+    container_name: analytics-service
+    image: analytics-service:v1
+    networks:
+      - backend-api
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "${SPRING_KAFKA_BOOTSTRAP_SERVERS}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/actuator/health"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  billing-service:
+    container_name: billing-service
+    image: billing-service:v2
+    networks:
+      - backend-api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/actuator/health"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  backend-api:
+    external: true
