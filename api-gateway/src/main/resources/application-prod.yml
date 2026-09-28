@@ -30,7 +30,7 @@ spring:
             - RewritePath=/api-docs/patients,/v3/api-docs
 
         - id: api-docs-auth-route
-          uri: http:/host.docker.internal:4005
+          uri: http://host.docker.internal:4005
           predicates:
             - Path=/api-docs/auth
           filters:
