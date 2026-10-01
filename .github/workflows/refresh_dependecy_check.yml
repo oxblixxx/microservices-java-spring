@@ -1,4 +1,3 @@
-```yaml
 name: Refresh Dependency-Check DB
 
 on:
@@ -49,4 +48,3 @@ jobs:
         with:
           path: ~/.m2/repository/org/owasp/dependency-check-data
           key: dependency-check-data-linux-${{ github.run_id }}
-```
