@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+
   pull_request:
     branches:
       - main
@@ -15,6 +16,16 @@ jobs:
   build-and-scan:
     name: Build and Security Scan
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - patient-service
+          - billing-service
+          - auth-service
+          - analytics-service
 
     steps:
       - name: Checkout
@@ -28,24 +39,27 @@ jobs:
           cache: maven
 
       - name: Make Maven wrapper executable
+        working-directory: ${{ matrix.service }}
         run: chmod +x mvnw
 
       - name: Build and test
+        working-directory: ${{ matrix.service }}
         run: ./mvnw verify
 
       - name: Dependency vulnerability scan
+        working-directory: ${{ matrix.service }}
         run: ./mvnw dependency-check:check
 
       - name: Build Docker image
         run: |
           docker build \
-            -t patient-service:${{ github.sha }} \
-            .
+            -t ${{ matrix.service }}:${{ github.sha }} \
+            ./${{ matrix.service }}
 
       - name: Scan Docker image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: patient-service:${{ github.sha }}
+          image-ref: ${{ matrix.service }}:${{ github.sha }}
           format: table
           exit-code: "1"
           ignore-unfixed: true
