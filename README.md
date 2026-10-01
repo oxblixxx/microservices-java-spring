@@ -418,28 +418,304 @@ POSTGRES_DB=db;POSTGRES_PASSWORD=password;POSTGRES_USER=admin_user
 ```
 
 
-your_auth_secure_password
-your_patient_secure_password
-
-
-
-export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:5433/patient_service_db"
-export SPRING_DATASOURCE_USERNAME="patient_service"
-export SPRING_DATASOURCE_PASSWORD="your_patient_secure_password"
-export SPRING_JPA_HIBERNATE_DDL_AUTO="update"
-export SPRING_SQL_INIT_MODE="always"
-
-
-export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:5433/auth_service_db"
-export SPRING_DATASOURCE_USERNAME="auth_service"
-export SPRING_DATASOURCE_PASSWORD="your_auth_secure_password"
-export SPRING_JPA_HIBERNATE_DDL_AUTO="update"
-export SPRING_SQL_INIT_MODE="always"
-export JWT_SECRET='xGv645JNn42W/AbOAYWYfB7+byo4Km9734O7iDWIpnWKdJCJdgr2RGXteXbDiapHQAdlBrExgiuS7ufSYpd+nA=='
-
-
- ./mvnw spring-boot:run
 
  export JAVA_TOOL_OPTIONS="-javaagent:/opt/opentelemetry/opentelemetry-javaagent.jar"
+ ./mvnw spring-boot:run
 
+export JWT_SECRET="$(openssl rand -base64 64 | tr -d '\n')"
  export AUTH_SERVICE_URL="http://127.0.0.1:4005"
+
+
+ sudo ufw allow from 172.25.0.0/16 to any port 9092 proto tcp
+
+
+
+ {
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "servers": [
+    {
+      "url": "http://patient-service:4000",
+      "description": "Generated server url"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Patient",
+      "description": "API for managing Patients"
+    }
+  ],
+  "paths": {
+    "/patients": {
+      "get": {
+        "tags": [
+          "Patient"
+        ],
+        "summary": "Get Patients",
+        "operationId": "getPatients",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PatientResponseDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Patient"
+        ],
+        "summary": "Create a new Patient",
+        "operationId": "createPatient",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{id}": {
+      "put": {
+        "tags": [
+          "Patient"
+        ],
+        "summary": "Update a new Patient",
+        "operationId": "updatePatient",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Patient"
+        ],
+        "summary": "Delete a Patient",
+        "operationId": "deletePatient",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PatientRequestDTO": {
+        "required": [
+          "address",
+          "dateOfBirth",
+          "email",
+          "name",
+          "registeredDate"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string"
+          },
+          "registeredDate": {
+            "type": "string"
+          }
+        }
+      },
+      "PatientResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+curl -i -X POST http://localhost:4004/api/patients \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Patient",
+    "email": "test.patient@example.com",
+    "address": "123 Test Street",
+    "dateOfBirth": "1998-05-20",
+    "registeredDate": "2026-09-28"
+  }'
+
+docker network connect backend-api signoz-ingester-1
+
+TOKEN=$(curl -s -X POST http://localhost:4004/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"testuser@test.com","password":"password123"}' \
+  | jq -r '.token')
+
+echo "$TOKEN"
+
+
+
+
+EMAIL="full-e2e-$(date +%s)@example.com"
+
+CREATE_RESPONSE=$(curl -s -X POST http://localhost:4004/api/patients \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"name\": \"Full E2E Test\",
+    \"email\": \"$EMAIL\",
+    \"address\": \"123 Test Street\",
+    \"dateOfBirth\": \"1995-05-20\",
+    \"registeredDate\": \"2026-09-28\"
+  }")
+
+echo "$CREATE_RESPONSE" | jq
+
+
+
+
+
+
+
+
+MICROSERVICES
+      │
+      ▼
+OBSERVABILITY
+      │
+      ├── Traces                 ✅
+      ├── Container metrics      ✅
+      ├── JVM metrics
+      ├── Logs
+      ├── Host metrics
+      ├── PostgreSQL metrics
+      ├── Kafka metrics
+      ├── Health
+      ├── Dashboards
+      └── Alerts
+      │
+      ▼
+RELIABILITY
+      │
+      ├── SLI/SLO
+      ├── Failure testing
+      ├── Resilience
+      ├── Backups
+      └── Recovery
+      │
+      ▼
+SECURITY
+      │
+      ├── Network
+      ├── Secrets
+      ├── Containers
+      └── Supply chain
+      │
+      ▼
+CI/CD
+      │
+      ▼
+TERRAFORM
+      │
+      ▼
+KUBERNETES
+      │
+      ▼
+PRODUCTION ARCHITECTURE
+      │
+      ├── HA
+      ├── Scaling
+      ├── DR
+      ├── Capacity
+      └── Cost
