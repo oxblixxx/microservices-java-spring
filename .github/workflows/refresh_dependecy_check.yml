@@ -35,9 +35,11 @@ jobs:
           restore-keys: |
             dependency-check-data-linux-
 
-      - name: Download NVD delta
+      - name: Download NVD updates
         working-directory: patient-service
-        run: ./mvnw org.owasp:dependency-check-maven:update-only
+        run: |
+          ./mvnw org.owasp:dependency-check-maven:update-only \
+            -Dnvd.api.key="${{ secrets.NVD_API_KEY }}"
 
       - name: Save refreshed DB
         uses: actions/cache/save@v4
