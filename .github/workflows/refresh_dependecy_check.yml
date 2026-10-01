@@ -1,0 +1,46 @@
+name: Refresh Dependency-Check DB
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Make Maven wrapper executable
+        working-directory: patient-service
+        run: chmod +x mvnw
+
+      - name: Restore latest DB snapshot
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: dependency-check-data-linux-${{ github.run_id }}
+          restore-keys: |
+            dependency-check-data-linux-
+
+      - name: Download NVD delta
+        working-directory: patient-service
+        run: ./mvnw -q org.owasp:dependency-check-maven:update-only
+
+      - name: Save refreshed DB
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: dependency-check-data-linux-${{ github.run_id }}
