@@ -1,3 +1,4 @@
+```yaml
 name: Refresh Dependency-Check DB
 
 on:
@@ -12,7 +13,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,13 +38,15 @@ jobs:
 
       - name: Download NVD updates
         working-directory: patient-service
-        env: NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           ./mvnw org.owasp:dependency-check-maven:update-only \
-            -Dnvd.api.key="${{ secrets.NVD_API_KEY }}"
+            -Dnvd.api.key="$NVD_API_KEY"
 
       - name: Save refreshed DB
         uses: actions/cache/save@v4
         with:
           path: ~/.m2/repository/org/owasp/dependency-check-data
           key: dependency-check-data-linux-${{ github.run_id }}
+```
