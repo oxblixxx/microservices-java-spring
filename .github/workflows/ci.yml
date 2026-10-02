@@ -87,7 +87,7 @@ jobs:
         with:
           image-ref: ${{ matrix.service }}:${{ github.sha }}
           format: template
-          template: '@/contrib/html.tpl'
+          template: '@$HOME/.local/bin/trivy-bin/contrib/html.tpl'
           output: trivy-report.html
           exit-code: "1"
           ignore-unfixed: true
