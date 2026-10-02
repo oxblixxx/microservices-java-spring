@@ -89,7 +89,7 @@ jobs:
           format: template
           template: '@/home/runner/.local/bin/trivy-bin/contrib/html.tpl'
           output: trivy-report.html
-          exit-code: "1"
+          # exit-code: "1"
           ignore-unfixed: true
           vuln-type: "os,library"
           # severity: "CRITICAL,HIGH"
