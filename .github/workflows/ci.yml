@@ -41,8 +41,7 @@ jobs:
       - name: Make Maven wrapper executable
         working-directory: ${{ matrix.service }}
         run: chmod +x mvnw
-
-      - name: Restore latest Dependency-Check DB
+      - name: Restore Dependency-Check DB
         uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository/org/owasp/dependency-check-data
@@ -57,6 +56,14 @@ jobs:
       - name: Dependency vulnerability scan
         working-directory: ${{ matrix.service }}
         run: ./mvnw dependency-check:check
+
+      - name: Upload dependency-check report
+        if: always()                      # ← crucial: uploads even when the scan FAILS the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report-${{ matrix.service }}
+          path: ${{ matrix.service }}/target/dependency-check-report.html
+          retention-days: 14
 
       - name: Build Docker image
         run: |
