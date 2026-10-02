@@ -82,12 +82,16 @@ jobs:
             -t ${{ matrix.service }}:${{ github.sha }} \
             ./${{ matrix.service }}
 
+      - name: Locate Trivy HTML template
+        run: |
+          find /home/runner -name html.tpl -type f 2>/dev/null
+
       - name: Scan Docker image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ matrix.service }}:${{ github.sha }}
           format: template
-#          template: '@$HOME/.local/bin/trivy-bin/contrib/html.tpl'
+          template: '@/home/runner/.local/bin/trivy-bin/contrib/html.tpl'
           output: trivy-report.html
           exit-code: "1"
           ignore-unfixed: true
@@ -96,7 +100,7 @@ jobs:
 
       - name: Upload Trivy HTML report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: trivy-${{ matrix.service }}
           path: trivy-report.html
