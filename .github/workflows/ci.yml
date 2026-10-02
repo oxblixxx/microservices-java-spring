@@ -42,6 +42,14 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: chmod +x mvnw
 
+      - name: Restore latest Dependency-Check DB
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: dependency-check-data-linux-${{ github.run_id }}
+          restore-keys: |
+            dependency-check-data-linux-
+
       - name: Build and test
         working-directory: ${{ matrix.service }}
         run: ./mvnw verify
