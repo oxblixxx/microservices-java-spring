@@ -133,11 +133,14 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
-
       <plugin>
           <groupId>org.owasp</groupId>
           <artifactId>dependency-check-maven</artifactId>
           <version>12.2.2</version>
+          <configuration>
+            <failBuildOnCVSS>7</failBuildOnCVSS>
+            <formats>HTML,JSON,SARIF</formats>
+          </configuration>
       </plugin>
 
       <!-- PROTO -->
