@@ -1,0 +1,146 @@
+name: Deploy Staging
+
+on:
+  workflow_run:
+    workflows:
+      - Publish
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging VPS
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+
+    environment:
+      name: staging
+
+    steps:
+      - name: Checkout published revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Deploy to staging
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /var/www/html/microservices-java-spring
+
+            export IMAGE_TAG="${{ github.event.workflow_run.head_branch }}"
+
+            echo "Deploying staging..."
+            echo "Image tag: ${IMAGE_TAG}"
+
+            docker compose pull
+
+            docker compose up -d --remove-orphans
+
+            echo "Staging deployment completed."
+
+
+            echo "Waiting for API Gateway..."
+
+            for i in $(seq 1 36); do
+              if curl -fsS http://localhost:4004/actuator/health > /dev/null; then
+                echo "API Gateway is healthy."
+                exit 0
+              fi
+
+              echo "Attempt ${i}/36 - API Gateway not ready."
+
+              echo "Current service health:"
+              docker compose ps
+
+              sleep 10
+            done
+
+            echo ""
+            echo "API Gateway failed health check."
+            echo ""
+            echo "Final service health:"
+            docker compose ps
+
+            echo ""
+            echo "Healthcheck details:"
+            for service in api-gateway auth-service patient-service billing-service analytics-service; do
+              echo ""
+              echo "===== ${service} ====="
+              docker inspect "${service}" \
+                --format '{{.State.Status}} | Health: {{if .State.Health}}{{.State.Health.Status}}{{else}}N/A{{end}}'
+            done
+
+            echo ""
+            echo "Unhealthy service logs:"
+            for service in api-gateway auth-service patient-service billing-service analytics-service; do
+              status=$(docker inspect "${service}" \
+                --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' 2>/dev/null || true)
+
+              if [ "$status" = "unhealthy" ]; then
+                echo ""
+                echo "===== ${service} is UNHEALTHY ====="
+                docker inspect "${service}" \
+                  --format '{{range .State.Health.Log}}{{println .Start "ExitCode=" .ExitCode}}{{println .Output}}{{end}}'
+                
+                echo "----- Last logs -----"
+                docker compose logs --tail=50 "$service"
+              fi
+            done
+
+            exit 1
+
+      # - name: Run staging smoke tests
+      #   env:
+      #     STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+      #   run: |
+      #     chmod +x ./integration-tests/smoke-tests.sh
+      #     ./integration-tests/smoke-tests.sh
+
+      # - name: Run integration tests
+      #   env:
+      #     STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+      #   run: |
+      #     ./mvnw \
+      #       -f integration-tests/pom.xml \
+      #       test \
+      #       -DbaseUrl="$STAGING_BASE_URL"
+
+      # - name: Collect staging logs on failure
+      #   if: failure()
+      #   uses: appleboy/ssh-action@v1.2.5
+      #   with:
+      #     host: ${{ secrets.STAGING_HOST }}
+      #     username: ${{ secrets.STAGING_USER }}
+      #     key: ${{ secrets.STAGING_SSH_KEY }}
+      #     script: |
+      #       cd /opt/microservices
+
+      #       echo "===== Container Status ====="
+      #       docker compose ps
+
+      #       echo "===== Container Health ====="
+      #       docker inspect \
+      #         api-gateway \
+      #         patient-service \
+      #         billing-service \
+      #         auth-service \
+      #         analytics-service \
+      #         --format '{{.Name}} -> {{.State.Status}} / {{if .State.Health}}{{.State.Health.Status}}{{end}}' \
+      #         2>/dev/null || true
+
+      #       echo "===== Recent Logs ====="
+      #       docker compose logs --tail=200
+
+      #       echo "===== Docker Images ====="
+      #       docker compose images
