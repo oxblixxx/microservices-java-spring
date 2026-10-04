@@ -55,9 +55,9 @@ jobs:
             touch .staging-state/release.env
             touch .staging-state/rollback.env
 
-            # echo ""
-            # echo "==> Capturing current rollback state"
-            # source ./scripts/capture-rollback-state.sh
+            echo ""
+            echo "==> Capturing current rollback state"
+            source ./scripts/capture-rollback-state.sh
 
             echo ""
             echo "==> Preparing new release"
@@ -88,7 +88,10 @@ jobs:
                 [ -z "$service" ] && continue
 
                 echo "Rolling back ${service}..."
-
+                set -a
+                source .env
+                source .staging-state/release.env
+                set +a
                 if ! bash ./scripts/rollback-service.sh "$service"; then
                   rollback_failed=1
                 fi
