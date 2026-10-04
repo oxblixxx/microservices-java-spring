@@ -55,6 +55,10 @@ jobs:
           restore-keys: |
             dependency-check-data-linux-
 
+      - name: Unit test
+        working-directory: ${{ matrix.service }}
+        run: ./mvnw test
+
       - name: Build and test
         working-directory: ${{ matrix.service }}
         run: ./mvnw verify

@@ -27,118 +27,111 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Deploy to staging
+      - name: Deploy and validate staging
         uses: appleboy/ssh-action@v1.2.5
+        env:
+            STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+            STAGING_TEST_EMAIL: ${{ secrets.STAGING_TEST_EMAIL }}
+            STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
         with:
           host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
+          #envs: STAGING_BASE_URL,STAGING_TEST_EMAIL,STAGING_TEST_PASSWORD
           script: |
+            set -euo pipefail
+
             cd /var/www/html/microservices-java-spring
 
+            export DOCKERHUB_USERNAME=oxblixxx
             export IMAGE_TAG="${{ github.event.workflow_run.head_branch }}"
 
-            echo "Deploying staging..."
+            echo "======================================"
+            echo "Deploying staging"
             echo "Image tag: ${IMAGE_TAG}"
+            echo "======================================"
 
-            docker compose pull
+            mkdir -p .staging-state
+            touch .staging-state/release.env
+            touch .staging-state/rollback.env
 
+            # echo ""
+            # echo "==> Capturing current rollback state"
+            # source ./scripts/capture-rollback-state.sh
+
+            echo ""
+            echo "==> Preparing new release"
+            source ./scripts/prepare-release.sh
+
+            echo ""
+            echo "==> Loading release environment"
+            set -a
+            source .env
+            source .staging-state/release.env
+            set +a
+
+            echo ""
+            echo "==> Deploying immutable images"
             docker compose up -d --remove-orphans
 
-            echo "Staging deployment completed."
+            echo ""
+            echo "==> Checking service health"
 
+            if bash ./scripts/check-health.sh; then
+              echo "All services are healthy."
+            else
+              echo "Health check failed."
 
-            echo "Waiting for API Gateway..."
+              rollback_failed=0
 
-            for i in $(seq 1 36); do
-              if curl -fsS http://localhost:4004/actuator/health > /dev/null; then
-                echo "API Gateway is healthy."
-                exit 0
-              fi
+              while read -r service; do
+                [ -z "$service" ] && continue
 
-              echo "Attempt ${i}/36 - API Gateway not ready."
+                echo "Rolling back ${service}..."
 
-              echo "Current service health:"
+                if ! bash ./scripts/rollback-service.sh "$service"; then
+                  rollback_failed=1
+                fi
+              done < .staging-state/failed-services.txt
+
               docker compose ps
 
-              sleep 10
-            done
-
-            echo ""
-            echo "API Gateway failed health check."
-            echo ""
-            echo "Final service health:"
-            docker compose ps
-
-            echo ""
-            echo "Healthcheck details:"
-            for service in api-gateway auth-service patient-service billing-service analytics-service; do
-              echo ""
-              echo "===== ${service} ====="
-              docker inspect "${service}" \
-                --format '{{.State.Status}} | Health: {{if .State.Health}}{{.State.Health.Status}}{{else}}N/A{{end}}'
-            done
-
-            echo ""
-            echo "Unhealthy service logs:"
-            for service in api-gateway auth-service patient-service billing-service analytics-service; do
-              status=$(docker inspect "${service}" \
-                --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' 2>/dev/null || true)
-
-              if [ "$status" = "unhealthy" ]; then
-                echo ""
-                echo "===== ${service} is UNHEALTHY ====="
-                docker inspect "${service}" \
-                  --format '{{range .State.Health.Log}}{{println .Start "ExitCode=" .ExitCode}}{{println .Output}}{{end}}'
-                
-                echo "----- Last logs -----"
-                docker compose logs --tail=50 "$service"
+              if [ "$rollback_failed" -ne 0 ]; then
+                echo "One or more service rollbacks failed."
               fi
-            done
 
-            exit 1
+              exit 1
+            fi
 
-      # - name: Run staging smoke tests
-      #   env:
-      #     STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
-      #   run: |
-      #     chmod +x ./integration-tests/smoke-tests.sh
-      #     ./integration-tests/smoke-tests.sh
+            echo ""
+            echo "==> Running staging smoke tests"
+            chmod +x ./integration-tests/smoke-tests.sh
+            ./integration-tests/smoke-tests.sh
 
-      # - name: Run integration tests
-      #   env:
-      #     STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
-      #   run: |
-      #     ./mvnw \
-      #       -f integration-tests/pom.xml \
-      #       test \
-      #       -DbaseUrl="$STAGING_BASE_URL"
+            echo ""
+            echo "==> Running integration tests"
+            ./mvnw \
+              -f integration-tests/pom.xml \
+              test \
+              -DbaseUrl="$STAGING_BASE_URL"
 
-      # - name: Collect staging logs on failure
-      #   if: failure()
-      #   uses: appleboy/ssh-action@v1.2.5
-      #   with:
-      #     host: ${{ secrets.STAGING_HOST }}
-      #     username: ${{ secrets.STAGING_USER }}
-      #     key: ${{ secrets.STAGING_SSH_KEY }}
-      #     script: |
-      #       cd /opt/microservices
+            echo ""
+            echo "==> Running k6 baseline performance test"
+            cd integration-tests/performance
 
-      #       echo "===== Container Status ====="
-      #       docker compose ps
+            cp .env.example .env
 
-      #       echo "===== Container Health ====="
-      #       docker inspect \
-      #         api-gateway \
-      #         patient-service \
-      #         billing-service \
-      #         auth-service \
-      #         analytics-service \
-      #         --format '{{.Name}} -> {{.State.Status}} / {{if .State.Health}}{{.State.Health.Status}}{{end}}' \
-      #         2>/dev/null || true
+            sed -i "s/^STAGING_BASE_URL=.*/STAGING_BASE_URL=${STAGING_BASE_URL}/" .env
+            sed -i "s/^TEST_EMAIL=.*/TEST_EMAIL=${STAGING_TEST_EMAIL}/" .env
+            sed -i "s/^TEST_PASSWORD=.*/TEST_PASSWORD=${STAGING_TEST_PASSWORD}/" .env
 
-      #       echo "===== Recent Logs ====="
-      #       docker compose logs --tail=200
+            k6 run baseline.js
 
-      #       echo "===== Docker Images ====="
-      #       docker compose images
+            echo ""
+            echo "==> Running k6 API performance test"
+            k6 run api.js
+
+            echo ""
+            echo "======================================"
+            echo "Staging validation passed."
+            echo "======================================"
