@@ -6,7 +6,8 @@ services:
 
   api-gateway:
     container_name: api-gateway
-    image: ${DOCKERHUB_USERNAME}/api-gateway:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/api-gateway@${API_GATEWAY_DIGEST}
+#    image: ${DOCKERHUB_USERNAME}/api-gateway:${IMAGE_TAG}
 
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -59,7 +60,8 @@ services:
 
   patient-service:
     container_name: patient-service
-    image: ${DOCKERHUB_USERNAME}/patient-service:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/patient-service@${PATIENT_SERVICE_DIGEST}
+#    image: ${DOCKERHUB_USERNAME}/patient-service:${IMAGE_TAG}
 
     environment:
       SPRING_PROFILES_ACTIVE: staging
@@ -114,7 +116,8 @@ services:
 
   auth-service:
     container_name: auth-service
-    image: ${DOCKERHUB_USERNAME}/auth-service:${IMAGE_TAG}
+#    image: ${DOCKERHUB_USERNAME}/auth-service:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/auth-service@${AUTH_SERVICE_DIGEST}
 
     environment:
       SPRING_PROFILES_ACTIVE: staging
@@ -164,8 +167,8 @@ services:
 
   analytics-service:
     container_name: analytics-service
-    image: ${DOCKERHUB_USERNAME}/analytics-service:${IMAGE_TAG}
-
+#    image: ${DOCKERHUB_USERNAME}/analytics-service:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/analytics-service@${ANALYTICS_SERVICE_DIGEST}
     environment:
       SPRING_PROFILES_ACTIVE: staging
 
@@ -208,8 +211,8 @@ services:
 
   billing-service:
     container_name: billing-service
-    image: ${DOCKERHUB_USERNAME}/billing-service:${IMAGE_TAG}
-
+#    image: ${DOCKERHUB_USERNAME}/billing-service:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/billing-service@${BILLING_SERVICE_DIGEST}
     environment:
       SPRING_PROFILES_ACTIVE: staging
 
