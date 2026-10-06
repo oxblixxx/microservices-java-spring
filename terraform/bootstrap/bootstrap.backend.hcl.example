@@ -1,0 +1,6 @@
+# Copy to bootstrap.backend.hcl and fill in. Do not commit real values.
+bucket       = "microservices-patient-1c6b46f7"
+key          = "bootstrap/terraform.tfstate"
+region       = "eu-west-1"
+encrypt      = true
+use_lockfile = true

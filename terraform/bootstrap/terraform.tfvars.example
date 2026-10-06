@@ -1,0 +1,26 @@
+# Example variable file for the bootstrap stack. Copy to terraform.tfvars and
+# adjust. Replace the state bucket names with globally unique values.
+
+project   = "microservices-java-spring"
+owner     = "platform-team"
+cost_center = "engineering"
+region    = "eu-west-1"
+
+state_buckets = {
+  bootstrap = {
+    name          = "REPLACE-ME-terraform-state-bootstrap"
+    force_destroy = false
+  }
+  staging = {
+    name          = "REPLACE-ME-terraform-state-staging"
+    force_destroy = false
+  }
+  production = {
+    name          = "REPLACE-ME-terraform-state-production"
+    force_destroy = false
+  }
+}
+
+create_state_kms_key           = true
+create_github_oidc_provider    = true
+additional_tags                = {}
