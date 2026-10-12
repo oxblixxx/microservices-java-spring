@@ -1,0 +1,43 @@
+---
+# Optional AWS CLI v2 install, used for AWS management from SSM sessions when
+# common_install_aws_cli is true. Downloaded from AWS's official host; set
+# common_aws_cli_checksum to verify the archive.
+
+- name: Check for an existing AWS CLI v2
+  ansible.builtin.command: /usr/local/bin/aws --version
+  register: common_aws_cli_existing
+  failed_when: false
+  changed_when: false
+
+- name: Install AWS CLI v2
+  when: common_aws_cli_existing.rc != 0
+  block:
+    - name: Create a temporary directory for the AWS CLI installer
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: awscli
+      register: common_aws_cli_tmp
+
+    - name: Download the AWS CLI v2 archive
+      ansible.builtin.get_url:
+        url: "{{ common_aws_cli_url }}"
+        dest: "{{ common_aws_cli_tmp.path }}/awscliv2.zip"
+        checksum: "{{ 'sha256:' + common_aws_cli_checksum if common_aws_cli_checksum | length > 0 else omit }}"
+        mode: "0644"
+
+    - name: Unarchive the AWS CLI v2 installer
+      ansible.builtin.unarchive:
+        src: "{{ common_aws_cli_tmp.path }}/awscliv2.zip"
+        dest: "{{ common_aws_cli_tmp.path }}"
+        remote_src: true
+
+    - name: Run the AWS CLI v2 installer
+      ansible.builtin.command:
+        cmd: "{{ common_aws_cli_tmp.path }}/aws/install --update"
+        creates: /usr/local/bin/aws
+  always:
+    - name: Remove the AWS CLI installer directory
+      ansible.builtin.file:
+        path: "{{ common_aws_cli_tmp.path }}"
+        state: absent
+      when: common_aws_cli_tmp is defined

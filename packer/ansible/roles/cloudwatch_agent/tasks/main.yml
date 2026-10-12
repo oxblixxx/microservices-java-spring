@@ -1,0 +1,37 @@
+---
+- name: Check whether the CloudWatch agent is already installed
+  ansible.builtin.command:
+    cmd: dpkg-query -W -f='${Status}' amazon-cloudwatch-agent
+  register: cloudwatch_agent_installed
+  failed_when: false
+  changed_when: false
+
+- name: Download the CloudWatch agent package
+  ansible.builtin.get_url:
+    url: "{{ cloudwatch_agent_package_url }}"
+    dest: "{{ cloudwatch_agent_package_path }}"
+    checksum: "{{ 'sha256:' + cloudwatch_agent_package_checksum if cloudwatch_agent_package_checksum | length > 0 else omit }}"
+    mode: "0644"
+  when: cloudwatch_agent_installed.rc != 0
+
+- name: Install the CloudWatch agent package
+  ansible.builtin.apt:
+    deb: "{{ cloudwatch_agent_package_path }}"
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: cloudwatch_agent_installed.rc != 0
+
+- name: Write a generic CloudWatch agent configuration when supplied
+  ansible.builtin.copy:
+    dest: "{{ cloudwatch_agent_config_path }}"
+    content: "{{ cloudwatch_agent_config | to_nice_json }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+  when: cloudwatch_agent_config | length > 0
+  notify: Restart CloudWatch agent
+
+- name: Remove the downloaded CloudWatch agent package
+  ansible.builtin.file:
+    path: "{{ cloudwatch_agent_package_path }}"
+    state: absent

@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# Packer
+# ---------------------------------------------------------------------------
+# Real build inputs. The checked-in example is *.auto.pkrvars.example.hcl, which
+# is NOT auto-loaded by Packer because it does not end in .auto.pkrvars.hcl.
+*.auto.pkrvars.hcl
+!*.auto.pkrvars.example.hcl
+
+# Plugin cache, crash logs and build outputs.
+packer_cache/
+crash.log
+crash.*.log
+*.hcl.json
+packer-manifest.json
+manifest.json
+*.log
+
+# ---------------------------------------------------------------------------
+# Ansible (Packer runs Ansible from this machine)
+# ---------------------------------------------------------------------------
+ansible/**/*.retry
+*.retry
+ansible/galaxy_roles/
+ansible/collections/
+*.pyc
+__pycache__/
+
+# ---------------------------------------------------------------------------
+# Private keys. Never commit an SSH private key used for manual testing.
+# ---------------------------------------------------------------------------
+*.pem
+id_rsa
+id_rsa.*
+
+# ---------------------------------------------------------------------------
+# Local validation environment used by scripts/validate.sh
+# ---------------------------------------------------------------------------
+.venv/
+venv/

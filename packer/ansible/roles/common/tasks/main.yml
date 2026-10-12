@@ -1,0 +1,54 @@
+---
+- name: Apply available security updates
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+    upgrade: safe
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  register: common_apt_upgrade
+  retries: 3
+  delay: 10
+  until: common_apt_upgrade is succeeded
+  when: common_apply_security_updates | bool
+
+- name: Refresh the APT cache when upgrades are disabled
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: not (common_apply_security_updates | bool)
+
+- name: Install base operating-system packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    install_recommends: false
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Read the current timezone
+  ansible.builtin.slurp:
+    src: /etc/timezone
+  register: common_timezone_current
+  failed_when: false
+  changed_when: false
+
+- name: Set the system timezone
+  ansible.builtin.command:
+    cmd: "timedatectl set-timezone {{ common_timezone }}"
+  when: >-
+    common_timezone_current.content is not defined or
+    (common_timezone_current.content | b64decode | trim) != common_timezone
+  changed_when: true
+
+- name: Ensure time synchronisation is enabled and running
+  ansible.builtin.systemd:
+    name: "{{ common_ntp_service }}"
+    enabled: true
+    state: started
+
+- name: Install AWS CLI v2 when requested
+  ansible.builtin.include_tasks: aws_cli.yml
+  when: common_install_aws_cli | bool

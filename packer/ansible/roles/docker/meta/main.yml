@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  role_name: docker
+  author: platform-team
+  description: Docker Engine, CLI, containerd, Buildx and Compose plugins from Docker's official Ubuntu APT repository.
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+  galaxy_tags:
+    - docker
+    - containers
+dependencies: []

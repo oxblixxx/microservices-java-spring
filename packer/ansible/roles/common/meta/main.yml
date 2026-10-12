@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  role_name: common
+  author: platform-team
+  description: Base Ubuntu 24.04 packages, repositories and time synchronisation for the container-host base AMI.
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+  galaxy_tags:
+    - ubuntu
+    - base
+dependencies: []

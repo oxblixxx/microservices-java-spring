@@ -1,0 +1,8 @@
+---
+# Ansible Galaxy requirements.
+#
+# Every role in this project uses only ansible.builtin modules, so no external
+# roles or collections are required. This file exists as the single, explicit
+# place to declare a dependency if one is ever introduced. Packer resolves it
+# with `ansible-galaxy install -r` before running the playbook.
+roles: []

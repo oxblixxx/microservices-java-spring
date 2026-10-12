@@ -1,0 +1,7 @@
+{
+  "$schema": {{ fastfetch_motd_schema_url | to_json }},
+  "logo": {
+    "source": {{ fastfetch_motd_logo | to_json }}
+  },
+  "modules": {{ fastfetch_motd_modules | to_nice_json(indent=2) }}
+}

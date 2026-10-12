@@ -1,0 +1,77 @@
+---
+- name: Remove SSM agent registration state so the agent re-registers on first boot
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ cleanup_ssm_state_paths }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Remove provisioning artifacts and shell history
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ cleanup_provisioning_paths }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Find SSH host keys
+  ansible.builtin.find:
+    paths: /etc/ssh
+    patterns: "ssh_host_*"
+    file_type: any
+  register: cleanup_ssh_host_keys
+
+- name: Remove SSH host keys so they are regenerated on first boot
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ cleanup_ssh_host_keys.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Reset the machine-id for regeneration on first boot
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/machine-id
+    owner: root
+    group: root
+    mode: "0444"
+
+- name: Remove the D-Bus machine-id duplicate when present
+  ansible.builtin.file:
+    path: /var/lib/dbus/machine-id
+    state: absent
+  failed_when: false
+
+- name: Reset cloud-init so it re-runs on first boot
+  ansible.builtin.command:
+    cmd: cloud-init clean --logs
+  changed_when: true
+  failed_when: false
+
+- name: Clean the APT cache
+  ansible.builtin.apt:
+    clean: true
+
+- name: Remove cached APT package lists
+  ansible.builtin.file:
+    path: /var/lib/apt/lists
+    state: absent
+
+- name: Discard archived systemd journal entries
+  ansible.builtin.command:
+    cmd: journalctl --vacuum-time=1s
+  changed_when: false
+  failed_when: false
+
+- name: Truncate active system log files
+  ansible.builtin.shell:
+    cmd: find /var/log -type f -name '*.log' -exec truncate -s 0 -- {} +
+  changed_when: false
+  failed_when: false
+
+- name: Remove build-time temporary files
+  ansible.builtin.shell:
+    cmd: find {{ cleanup_tmp_paths | join(' ') }} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+  changed_when: false

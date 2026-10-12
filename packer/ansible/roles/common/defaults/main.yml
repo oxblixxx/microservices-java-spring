@@ -1,0 +1,50 @@
+---
+# Base operating-system configuration. Keep the package set minimal and rely on
+# Ubuntu's own repositories.
+
+common_packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - jq
+  - logrotate
+  - lsb-release
+  - openssl
+  - python3
+  - python3-apt
+  - rsync
+  - sed
+  - unzip
+  - wget
+  - chrony
+  - fastfetch
+
+# Time synchronisation. Ubuntu cloud images ship systemd-timesyncd; keep it
+# rather than pulling in a second NTP implementation.
+common_ntp_service: chrony
+
+common_timezone: Etc/UTC
+
+# Whether available security updates are applied during the build. Forwarded
+# from Packer as --extra-vars; safe default keeps the roles usable standalone.
+common_apply_security_updates: "{{ apply_security_updates | default(true) }}"
+
+# Optional AWS CLI v2 install. Off by default to keep the package set minimal:
+# ECR pulls work without it via the Amazon ECR credential helper installed by
+# the docker role.
+common_install_aws_cli: "{{ install_aws_cli | default(false) }}"
+
+common_aws_cli_arch_map:
+  x86_64: x86_64
+  aarch64: aarch64
+
+common_aws_cli_arch: "{{ common_aws_cli_arch_map[ansible_architecture] | default(ansible_architecture) }}"
+
+common_aws_cli_version: "2.34.45"
+
+common_aws_cli_url: "https://awscli.amazonaws.com/awscli-exe-linux-{{ common_aws_cli_arch }}-{{ common_aws_cli_version }}.zip"
+
+# Optional SHA256 of the AWS CLI zip. When empty get_url skips verification;
+# set this to pin and verify the download in a regulated environment.
+common_aws_cli_checksum: ""

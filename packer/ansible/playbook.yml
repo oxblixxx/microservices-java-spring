@@ -1,0 +1,48 @@
+---
+# Main playbook for the reusable container-host base image.
+#
+# Packer runs this with the ansible provisioner. The build host is placed in the
+# "packer_build" group, so "all" resolves to the single temporary instance.
+#
+# Role order matters:
+#   1. common              - base OS packages, time sync, optional AWS CLI
+#   2. docker              - Docker Engine from Docker's official APT repo
+#   3. ssm                 - AWS SSM Agent (Session Manager ready)
+#   4. cloudwatch_agent    - optional agent install (no environment config)
+#   5. security_hardening  - Docker/SSM-safe Ubuntu 24.04 baseline
+#   6. cleanup             - generalise the image (last)
+- name: Build the container-host base image
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: common
+    - role: docker
+    - role: ssm
+    - role: cloudwatch_agent
+      when: cloudwatch_agent_enabled | default(false) | bool
+    - role: security_hardening
+    - role: cleanup
+
+  # post_tasks:
+  #   # Baseline compatibility check: prove the hardening did not disturb the two
+  #   # services the hosts depend on (Docker runtime and SSM administration).
+  #   - name: Gather service facts after provisioning
+  #     ansible.builtin.service_facts:
+
+  #   - name: Assert Docker survived the security baseline
+  #     ansible.builtin.assert:
+  #       that:
+  #         - "'docker.service' in ansible_facts.services"
+  #         - "ansible_facts.services['docker.service'].state == 'running'"
+  #       fail_msg: "Docker is not running after hardening; the baseline is not Docker-safe."
+  #       success_msg: "Docker is running after hardening."
+
+  #   - name: Assert the SSM agent survived the security baseline
+  #     ansible.builtin.assert:
+  #       that:
+  #         - "ssm_agent_service in ansible_facts.services"
+  #         - "ansible_facts.services[ssm_agent_service].state == 'running'"
+  #       fail_msg: "The SSM agent is not running after hardening; the baseline is not SSM-safe."
+  #       success_msg: "The SSM agent is running after hardening."

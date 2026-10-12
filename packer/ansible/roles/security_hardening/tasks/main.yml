@@ -1,0 +1,278 @@
+---
+- name: Install automatic security update tooling
+  ansible.builtin.apt:
+    name: "{{ security_hardening_packages }}"
+    state: present
+    install_recommends: false
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Enable periodic APT maintenance
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Restrict automatic updates to security origins
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/51-unattended-upgrades-ami
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+          "${distro_id}:${distro_codename}-security";
+          "${distro_id}ESMApps:${distro_codename}-apps-security";
+          "${distro_id}ESM:${distro_codename}-infra-security";
+      };
+      Unattended-Upgrade::Automatic-Reboot "false";
+      Unattended-Upgrade::Remove-Unused-Dependencies "false";
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure automatic update timers are enabled
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - apt-daily.timer
+    - apt-daily-upgrade.timer
+
+- name: Ensure AppArmor is installed
+  ansible.builtin.apt:
+    name: apparmor
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Ensure AppArmor is enabled and running
+  ansible.builtin.systemd:
+    name: apparmor
+    enabled: true
+    state: started
+
+- name: Verify AppArmor enforcement is active
+  ansible.builtin.command: aa-status --enabled
+  register: security_hardening_apparmor
+  changed_when: false
+  failed_when: security_hardening_apparmor.rc != 0
+
+- name: Apply network and kernel hardening sysctls
+  ansible.builtin.template:
+    src: sysctl-hardening.conf.j2
+    dest: "{{ security_hardening_sysctl_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload sysctl settings
+
+- name: Ensure the journald drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ security_hardening_journald_dropin | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure journald retention
+  ansible.builtin.copy:
+    dest: "{{ security_hardening_journald_dropin }}"
+    content: |
+      [Journal]
+      SystemMaxUse={{ security_hardening_journal_max_use }}
+      SystemKeepFree=1G
+      MaxRetentionSec={{ security_hardening_journal_retention }}
+      Compress=yes
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart journald
+
+- name: Harden the SSH daemon
+  ansible.builtin.copy:
+    dest: "{{ security_hardening_ssh_dropin }}"
+    content: "{{ security_hardening_sshd_config }}"
+    owner: root
+    group: root
+    mode: "0600"
+    
+- name: Ensure SSH privilege separation directory exists
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Validate the resulting SSH configuration
+  ansible.builtin.command: sshd -t
+  changed_when: false
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Disable unnecessary services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop: "{{ security_hardening_disabled_services }}"
+  when: item in ansible_facts.services
+  failed_when: false
+
+- name: Remove unnecessary legacy packages
+  ansible.builtin.apt:
+    name: "{{ security_hardening_removed_packages }}"
+    state: absent
+    purge: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: security_hardening_removed_packages | length > 0
+
+- name: Enforce permissions on sensitive files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop: "{{ security_hardening_file_permissions }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Verify supported operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "Ubuntu"
+      - ansible_service_mgr == "systemd"
+    fail_msg: "The fastfetch_motd role currently supports Ubuntu with systemd."
+
+# - name: Configure the Fastfetch PPA
+#   ansible.builtin.deb822_repository:
+#     name: "{{ fastfetch_motd_ppa_name }}"
+#     types:
+#       - deb
+#     uris:
+#       - "{{ fastfetch_motd_ppa_uri }}"
+#     suites:
+#       - "{{ ansible_distribution_release }}"
+#     components:
+#       - main
+#     signed_by: "{{ fastfetch_motd_ppa_signing_key_url }}"
+#     state: present
+#     enabled: true
+#   become: true
+#   when: fastfetch_motd_install_ppa | bool
+
+# - name: Refresh APT cache
+#   ansible.builtin.apt:
+#     update_cache: true
+#     cache_valid_time: "{{ fastfetch_motd_apt_cache_valid_time }}"
+#   become: true
+
+# - name: Install Fastfetch
+#   ansible.builtin.apt:
+#     name: "{{ fastfetch_motd_package }}"
+#     state: present
+#   become: true
+
+- name: Ensure Fastfetch configuration directory exists
+  ansible.builtin.file:
+    path: "{{ fastfetch_motd_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Ensure MOTD directory exists
+  ansible.builtin.file:
+    path: /etc/update-motd.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Ensure disabled MOTD archive directory exists
+  ansible.builtin.file:
+    path: "{{ fastfetch_motd_disabled_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: fastfetch_motd_disable_existing_scripts | bool
+
+- name: Find existing numbered MOTD scripts
+  ansible.builtin.find:
+    paths: /etc/update-motd.d
+    patterns:
+      - "[0-9][0-9]-*"
+    excludes:
+      - "{{ fastfetch_motd_script_name }}"
+    file_type: file
+    recurse: false
+  register: fastfetch_existing_motd_scripts
+  become: true
+  when: fastfetch_motd_disable_existing_scripts | bool
+
+- name: Check whether archived copies already exist
+  ansible.builtin.stat:
+    path: "{{ fastfetch_motd_disabled_dir }}/{{ item.path | basename }}"
+  loop: "{{ fastfetch_existing_motd_scripts.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  register: fastfetch_motd_archive_status
+  become: true
+  when: fastfetch_motd_disable_existing_scripts | bool
+
+- name: Archive existing MOTD scripts
+  ansible.builtin.command:
+    argv:
+      - mv
+      - --
+      - "{{ item.item.path }}"
+      - "{{ fastfetch_motd_disabled_dir }}/{{ item.item.path | basename }}"
+  loop: "{{ fastfetch_motd_archive_status.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.path | basename }}"
+  become: true
+  changed_when: true
+  when:
+    - fastfetch_motd_disable_existing_scripts | bool
+    - not item.stat.exists
+
+- name: Remove regenerated scripts that are already archived
+  ansible.builtin.file:
+    path: "{{ item.item.path }}"
+    state: absent
+  loop: "{{ fastfetch_motd_archive_status.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.path | basename }}"
+  become: true
+  when:
+    - fastfetch_motd_disable_existing_scripts | bool
+    - item.stat.exists
+
+- name: Deploy system-wide Fastfetch configuration
+  ansible.builtin.template:
+    src: config.jsonc.j2
+    dest: "{{ fastfetch_motd_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Validate Fastfetch configuration
+
+- name: Deploy Fastfetch MOTD script
+  ansible.builtin.template:
+    src: 99-fastfetch.j2
+    dest: "{{ fastfetch_motd_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"

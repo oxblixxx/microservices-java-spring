@@ -1,0 +1,160 @@
+---
+# Practical Ubuntu 24.04 security baseline. Deliberately conservative: it
+# avoids broad CIS changes that would break Docker, cloud-init or SSM.
+
+security_hardening_packages:
+  - unattended-upgrades
+
+# Unnecessary/unattended services present on Ubuntu cloud images. Timers that
+# drive automatic updates (apt-daily*, unattended-upgrades) are intentionally
+# NOT disabled.
+security_hardening_disabled_services:
+  - whoopsie.service
+  - apport.service
+  - apport.socket
+  - motd-news.service
+  - motd-news.timer
+
+# Legacy/cleartext clients purged when present.
+security_hardening_removed_packages:
+  - telnet
+  - rsh-client
+  - rsh-redone-client
+  - talk
+  - ntalk
+  - ypbind
+  - tftp
+  - xinetd
+
+# Network/kernel hardening that is safe alongside Docker's bridge networking and
+# NAT. Notably absent: net.ipv4.ip_forward (Docker needs it) and rp_filter
+# changes (Docker manages per-interface filtering itself).
+security_hardening_sysctl:
+  net.ipv4.tcp_syncookies: 1
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.secure_redirects: 0
+  net.ipv4.conf.default.secure_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.default.accept_source_route: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  net.ipv4.conf.all.log_martians: 1
+  net.ipv4.conf.default.log_martians: 1
+  net.ipv4.icmp_echo_ignore_broadcasts: 1
+  net.ipv4.icmp_ignore_bogus_error_responses: 1
+  net.ipv6.conf.all.accept_redirects: 0
+  net.ipv6.conf.default.accept_redirects: 0
+  net.ipv6.conf.all.accept_source_route: 0
+  kernel.randomize_va_space: 2
+  kernel.dmesg_restrict: 1
+  kernel.kptr_restrict: 2
+  fs.protected_hardlinks: 1
+  fs.protected_symlinks: 1
+
+security_hardening_sysctl_file: /etc/sysctl.d/60-container-host-hardening.conf
+
+security_hardening_journal_max_use: 200M
+security_hardening_journal_retention: 1month
+security_hardening_journald_dropin: /etc/systemd/journald.conf.d/00-ami-hardening.conf
+
+security_hardening_ssh_dropin: /etc/ssh/sshd_config.d/00-ami-hardening.conf
+
+# The drop-in sorts ahead of cloud-init's 50-cloud-init.conf, so it wins under
+# sshd's first-match-wins semantics. It is validated with `sshd -t` but NOT
+# reloaded during the build: instances are administered through SSM, and
+# restarting sshd would tear down Ansible's own SSH connection.
+security_hardening_sshd_config: |
+  PermitRootLogin no
+  PasswordAuthentication no
+  KbdInteractiveAuthentication no
+  PubkeyAuthentication yes
+  PermitEmptyPasswords no
+  X11Forwarding no
+  MaxAuthTries 4
+  ClientAliveInterval 300
+  ClientAliveCountMax 2
+
+security_hardening_file_permissions:
+  - path: /etc/shadow
+    owner: root
+    group: shadow
+    mode: "0640"
+  - path: /etc/gshadow
+    owner: root
+    group: shadow
+    mode: "0640"
+  - path: /etc/passwd
+    owner: root
+    group: root
+    mode: "0644"
+  - path: /etc/group
+    owner: root
+    group: root
+    mode: "0644"
+  - path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+  - path: /home/ubuntu
+    owner: ubuntu
+    group: ubuntu
+    mode: "0750"
+
+fastfetch_motd_enabled: true
+
+# Fastfetch installation
+fastfetch_motd_package: fastfetch
+fastfetch_motd_install_ppa: true
+
+fastfetch_motd_ppa_name: fastfetch
+fastfetch_motd_ppa_uri: "https://ppa.launchpadcontent.net/zhangsongcui3371/fastfetch/ubuntu"
+fastfetch_motd_ppa_signing_key_url: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x7E2E5CB4D4865F21"
+
+fastfetch_motd_apt_cache_valid_time: 3600
+
+# System-wide Fastfetch configuration
+fastfetch_motd_config_dir: /etc/fastfetch
+fastfetch_motd_config_path: /etc/fastfetch/config.jsonc
+
+fastfetch_motd_schema_url: "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json"
+
+# Use "Emperor" if it is available in the installed Fastfetch logo list.
+# Otherwise, use "Ubuntu" or another supported logo.
+fastfetch_motd_logo: "Emperor"
+
+# Dynamic MOTD
+fastfetch_motd_script_path: /etc/update-motd.d/99-fastfetch
+fastfetch_motd_script_name: 99-fastfetch
+
+# Move existing numbered MOTD scripts out of the active directory.
+fastfetch_motd_disable_existing_scripts: true
+fastfetch_motd_disabled_dir: /etc/update-motd.d/disabled
+
+# Server-oriented display configuration.
+# Avoid desktop-only modules that have no useful output on headless EC2.
+fastfetch_motd_modules:
+  - type: custom
+    format: "====================================================="
+  - type: custom
+    format: "SECURITY NOTICE"
+  - type: custom
+    format: "This system is monitored and logged"
+  - type: custom
+    format: "Unauthorized access is prohibited"
+  - type: custom
+    format: "====================================================="
+  - separator
+  - os
+  - host
+  - kernel
+  - uptime
+  - packages
+  - shell
+  - cpu
+  - memory
+  - swap
+  - disk
+  - localip
+  - locale
+  - break

@@ -1,0 +1,59 @@
+---
+# Docker Engine installed from Docker's official Ubuntu APT repository. The
+# repository signing key is verified through APT's signed-by mechanism.
+
+docker_apt_key_url: https://download.docker.com/linux/ubuntu/gpg
+
+docker_apt_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+
+docker_apt_arch: "{{ docker_apt_arch_map[ansible_architecture] | default('amd64') }}"
+
+docker_apt_repository: >-
+  deb [arch={{ docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc]
+  https://download.docker.com/linux/ubuntu {{ ansible_facts.distribution_release }} stable
+
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# Container log rotation. Values are forwarded from Packer; the defaults here
+# keep the role usable standalone.
+docker_daemon_log_max_size: "{{ docker_log_max_size | default('10m') }}"
+docker_daemon_log_max_file: "{{ docker_log_max_file | default('3') }}"
+
+# Deliberately minimal: log rotation only. The daemon listens on a local socket
+# and the Docker API is never exposed over TCP. live-restore and other tuning
+# are intentionally omitted to avoid unnecessary configuration.
+docker_daemon_config:
+  log-driver: json-file
+  log-opts:
+    max-size: "{{ docker_daemon_log_max_size }}"
+    max-file: "{{ docker_daemon_log_max_file }}"
+
+# Install the Amazon ECR credential helper so `docker pull` works against
+# private ECR repositories when the instance has an ECR-capable IAM role. The
+# helper is region/account agnostic (it discovers both from the instance), so no
+# environment-specific configuration is baked in.
+docker_ecr_credential_helper: true
+
+docker_client_config:
+  credsStore: ecr-login
+
+# Docker client config locations. The docker group is intentionally NOT
+# populated: membership grants root-equivalent access, so it is left to the
+# operator or configuration management layer to decide.
+docker_client_config_dirs:
+  - path: /root/.docker
+    owner: root
+    group: root
+  - path: /home/ubuntu/.docker
+    owner: ubuntu
+    group: ubuntu
+  - path: /etc/skel/.docker
+    owner: root
+    group: root

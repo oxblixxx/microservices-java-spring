@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Use the system-wide configuration so every user receives the same MOTD.
+FASTFETCH_CONFIG="/etc/fastfetch/config.jsonc"
+
+# Never break an SSH login if Fastfetch is unavailable or misconfigured.
+if ! command -v fastfetch >/dev/null 2>&1; then
+    exit 0
+fi
+
+if [ ! -r "$FASTFETCH_CONFIG" ]; then
+    exit 0
+fi
+
+fastfetch --config "$FASTFETCH_CONFIG" 2>/dev/null || true
+
+exit 0

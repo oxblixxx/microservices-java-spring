@@ -1,0 +1,9 @@
+---
+# ansible-lint configuration for this project.
+#
+# The Fastfetch MOTD feature uses a self-contained `fastfetch_motd_*` variable
+# namespace (and matching registered result names). It was added as an
+# independent block, so the role-prefix naming rule is skipped rather than
+# renaming the whole feature. Every other rule stays enabled.
+skip_list:
+  - var-naming[no-role-prefix]

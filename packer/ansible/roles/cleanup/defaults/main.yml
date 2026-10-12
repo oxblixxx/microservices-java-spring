@@ -1,0 +1,36 @@
+---
+# Image generalisation. Everything here runs while Ansible is still connected to
+# the build instance over the SSM Session Manager tunnel, so it must not stop
+# the SSM agent (doing so would tear down the tunnel). Registration state is
+# removed instead, which makes the agent re-register the new instance on first
+# boot. Packer's own temporary SSH key is removed by ssh_clear_authorized_keys.
+
+# SSM agent registration/identity state. Only the registration record is
+# removed (the documented AMI generalisation step) so the running agent is not
+# disturbed while Ansible still depends on the tunnel. Both the deb and snap
+# layouts are covered; missing paths are simply skipped.
+cleanup_ssm_state_paths:
+  - /var/lib/amazon/ssm/registration
+  - /var/snap/amazon-ssm-agent/common/var/lib/amazon/ssm/registration
+
+# Provisioning artifacts, shell history and cloud/identity leftovers that must
+# not ship in the image. authorized_keys is intentionally NOT listed: Packer
+# clears its temporary key after provisioning via ssh_clear_authorized_keys, and
+# removing it here would break Ansible's own SSH connection.
+cleanup_provisioning_paths:
+  - /home/ubuntu/.ansible
+  - /home/ubuntu/.aws
+  - /home/ubuntu/.bash_history
+  - /home/ubuntu/.ssh/known_hosts
+  - /home/ubuntu/.sudo_as_admin_successful
+  - /home/ubuntu/.wget-hsts
+  - /root/.ansible
+  - /root/.aws
+  - /root/.bash_history
+  - /root/.ssh/known_hosts
+  - /root/.wget-hsts
+  - /var/log/amazon/ssm
+
+cleanup_tmp_paths:
+  - /tmp
+  - /var/tmp

@@ -1,0 +1,26 @@
+---
+# Optional AWS CloudWatch Agent. The agent is installed only; no CloudWatch
+# resources are created and no environment-specific endpoints, credentials or
+# log-group names are baked into the image. Supply cloudwatch_agent_config at
+# build time only if a truly generic configuration is required; otherwise let
+# the launch-time user-data or configuration management layer provide it.
+
+cloudwatch_agent_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+
+cloudwatch_agent_arch: "{{ cloudwatch_agent_arch_map[ansible_architecture] | default('amd64') }}"
+
+cloudwatch_agent_package_url: "https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/{{ cloudwatch_agent_arch }}/latest/amazon-cloudwatch-agent.deb"
+
+cloudwatch_agent_package_path: /var/cache/amazon-cloudwatch-agent.deb
+
+# Optional SHA256 of the package. Empty skips verification.
+cloudwatch_agent_package_checksum: ""
+
+cloudwatch_agent_config_path: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+# Empty by default: the agent is installed but not configured or started.
+cloudwatch_agent_config: {}
+
+cloudwatch_agent_service: amazon-cloudwatch-agent.service

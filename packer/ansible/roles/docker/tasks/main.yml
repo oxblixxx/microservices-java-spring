@@ -1,0 +1,97 @@
+---
+- name: Ensure the APT keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Fetch Docker's official repository signing key
+  ansible.builtin.get_url:
+    url: "{{ docker_apt_key_url }}"
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add Docker's official APT repository
+  ansible.builtin.apt_repository:
+    repo: "{{ docker_apt_repository }}"
+    filename: docker
+    state: present
+    update_cache: true
+
+- name: Install Docker Engine, CLI, containerd and plugins
+  ansible.builtin.apt:
+    name: "{{ docker_packages }}"
+    state: present
+    update_cache: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Configure Docker daemon (container log rotation)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: "{{ docker_daemon_config | to_nice_json }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Docker
+
+- name: Enable and start Docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Apply the daemon configuration before verification
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the Docker daemon to become responsive
+  ansible.builtin.command: docker info
+  register: docker_info
+  changed_when: false
+  retries: 12
+  delay: 5
+  until: docker_info.rc == 0
+
+- name: Verify the Docker Compose plugin is available
+  ansible.builtin.command: docker compose version
+  changed_when: false
+
+- name: Verify the Docker Buildx plugin is available
+  ansible.builtin.command: docker buildx version
+  changed_when: false
+
+- name: Install the Amazon ECR credential helper
+  ansible.builtin.apt:
+    name: amazon-ecr-credential-helper
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: docker_ecr_credential_helper | bool
+
+- name: Ensure Docker client config directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "0700"
+  loop: "{{ docker_client_config_dirs }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: docker_ecr_credential_helper | bool
+
+- name: Configure the ECR credential helper for Docker clients
+  ansible.builtin.copy:
+    dest: "{{ item.path }}/config.json"
+    content: "{{ docker_client_config | to_nice_json }}\n"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "0600"
+  loop: "{{ docker_client_config_dirs }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: docker_ecr_credential_helper | bool

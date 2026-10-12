@@ -1,0 +1,5 @@
+# Managed by the security_hardening Ansible role.
+# Network and kernel hardening safe for Docker bridge networking and NAT.
+{% for key, value in security_hardening_sysctl | dictsort %}
+{{ key }} = {{ value }}
+{% endfor %}
