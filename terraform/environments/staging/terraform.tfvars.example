@@ -1,0 +1,86 @@
+# Example staging variables. Copy to terraform.tfvars and adjust.
+# Do NOT commit real account IDs, bucket names or secrets.
+
+project     = "microservices-java-spring"
+environment = "staging"
+region      = "eu-west-1"
+owner       = "platform-team"
+cost_center = "engineering"
+
+# Name of the bucket created by the bootstrap stack for staging state.
+terraform_state_bucket = "REPLACE-ME-terraform-state-staging"
+
+network = {
+  cidr            = "10.20.0.0/16"
+  azs             = ["eu-west-1a", "eu-west-1b"]
+  public_subnets  = ["10.20.0.0/20", "10.20.16.0/20"]
+  private_subnets = ["10.20.32.0/20", "10.20.48.0/20"]
+  # management_subnets = ["10.20.64.0/20"]  # only when genuinely required
+
+  enable_flow_logs         = true
+  flow_logs_retention_days = 30
+  map_public_ip_on_launch  = false
+}
+
+# NAT is disabled by default. Enable it when the EC2 hosts must install Docker
+# and pull images from the Internet; otherwise use a pre-baked AMI and
+# ECR-mirrored images with the VPC endpoints below.
+nat = {
+  enabled = false
+  per_az  = false
+}
+
+vpc_endpoints = {
+  interface_services = [
+    "ecr_api",
+    "ecr_dkr",
+    "ssm",
+    "ssmmessages",
+    "ec2messages",
+    "logs",
+    "secretsmanager",
+    "kms",
+  ]
+  gateway_services = ["s3"]
+}
+
+ec2 = {
+  microservices = {
+    instance_type = "t3.large"
+    volume_size   = 50
+    volume_type   = "gp3"
+  }
+  platform = {
+    instance_type = "t3.xlarge"
+    volume_size   = 100
+    volume_type   = "gp3"
+  }
+}
+
+application_images = {}
+
+ecr_image_tag_mutability = "IMMUTABLE"
+ecr_force_delete         = false
+
+#twingate = {
+#  enabled         = false
+#  connector_count = 1
+#  instance_type   = "t3.micro"
+#}
+
+#observability = {
+#  otlp_endpoint      = ""
+#  otlp_protocol      = "grpc"
+#  log_retention_days = 30
+#}
+
+github_actions = {
+  enabled           = true
+  oidc_provider_arn = "arn:aws:iam::REPLACE-ME:oidc-provider/token.actions.githubusercontent.com"
+  repository        = "REPLACE-ME/REPLACE-ME"   # owner/repository
+# GitHub repository and environment IDs are included in the OIDC subject claim.
+# Run the OIDC debug workflow(.github/workflow/build-push-ecr.yaml) to inspect the generated claim and retrieve the IDs.
+  subject_claims = [
+    "repo:oxblixxx@97739416/microservices-java-spring@1376399518:environment:staging"
+  ]
+}
