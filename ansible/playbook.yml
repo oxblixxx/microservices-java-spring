@@ -1,0 +1,19 @@
+---
+- name: Build the container-host base image
+  hosts: platform
+  become: true
+  gather_facts: true
+
+  roles:
+#    - role: users
+    - role: postgresql
+#    - role: kafka
+#    - role: nginx
+
+- name: Configure monitoring & kafka server
+  hosts: monitoring
+  become: true
+  gather_facts: true
+  roles:
+    - kafka
+    - signoz

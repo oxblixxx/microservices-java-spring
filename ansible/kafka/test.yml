@@ -1,0 +1,5 @@
+---
+- name: Testing andrewrothstein.kafka
+  hosts: all
+  roles:
+    - role: '{{ playbook_dir }}'

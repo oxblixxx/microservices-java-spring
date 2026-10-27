@@ -1,0 +1,22 @@
+[Unit]
+Description=Apache Kafka Server
+Documentation=https://kafka.apache.org/documentation/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ kafka_user }}
+Group={{ kafka_group }}
+WorkingDirectory={{ kafka_home }}
+
+ExecStart={{ kafka_home }}/bin/kafka-server-start.sh {{ kafka_config }}
+Environment="KAFKA_HEAP_OPTS=-Xms128m -Xmx256m"
+
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=180
+LimitNOFILE=100000
+
+[Install]
+WantedBy=multi-user.target

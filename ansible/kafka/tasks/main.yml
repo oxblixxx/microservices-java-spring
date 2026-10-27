@@ -1,0 +1,200 @@
+---
+- name: Update APT package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install software-properties-common
+  ansible.builtin.apt:
+    name: software-properties-common
+    state: present
+    update_cache: true
+
+- name: Check for java installation
+  become: true
+  ansible.builtin.stat:
+    path: /usr/lib/jvm/default-java
+  register: java_binary
+  changed_when: false
+
+- name: Install java when not installed
+  when: not java_binary.stat.exists
+  block:
+    - name: Install java
+      become: true
+      ansible.builtin.package:
+        name: openjdk-17-jdk
+        state: present
+
+- name: Check for Kafka installation
+  become: true
+  ansible.builtin.stat:
+    path: "{{ kafka_install_dir }}"
+  register: kafka_binary
+  changed_when: false
+
+- name: Download and install Kafka
+  when: not kafka_binary.stat.exists
+  block:
+    - name: Download Kafka archive
+      become: true
+      ansible.builtin.get_url:
+        url: "{{ kafka_tgz_url }}"
+        dest: "{{ kafka_tmp_tgz }}"
+        mode: '0644'
+        timeout: "{{ kafka_download_timeout_seconds }}"
+        checksum: "{{ kafka_checksum if kafka_checksum | length > 0 else omit }}"
+
+    - name: Create Kafka installation parent directory
+      become: true
+      ansible.builtin.file:
+        path: "{{ kafka_install_parent_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Extract Kafka archive
+      become: true
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "{{ kafka_tmp_tgz }}"
+        dest: "{{ kafka_install_parent_dir }}"
+        creates: "{{ kafka_install_dir }}"
+  always:
+    - name: Remove downloaded Kafka archive
+      become: true
+      ansible.builtin.file:
+        path: "{{ kafka_tmp_tgz }}"
+        state: absent
+
+- name: Link Kafka installation directory
+  become: true
+  ansible.builtin.file:
+    src: "{{ kafka_install_dir }}"
+    dest: "{{ kafka_install_link_dir }}"
+    state: link
+  when: kafka_install_dir != kafka_install_link_dir
+
+- name: Include Kafka in the default PATH
+  become: true
+  ansible.builtin.template:
+    src: kafka.sh.j2
+    dest: /etc/profile.d/kafka.sh
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Ensure Kafka group exists
+  become: true
+  ansible.builtin.group:
+    name: "{{ kafka_group }}"
+    system: true
+    state: present
+
+- name: Ensure Kafka service user exists
+  become: true
+  ansible.builtin.user:
+    name: "{{ kafka_user }}"
+    group: "{{ kafka_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    state: present
+
+- name: Ensure Kafka GC log directory exists
+  ansible.builtin.file:
+    path: /usr/local/kafka/logs
+    state: directory
+    owner: kafka
+    group: kafka
+    mode: '0750'
+
+- name: Ensure Kafka data directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ kafka_data_dir }}"
+    state: directory
+    owner: "{{ kafka_user }}"
+    group: "{{ kafka_group }}"
+    mode: '0750'
+
+- name: Configure Kafka server properties
+  become: true
+  ansible.builtin.template:
+    src: server.properties.j2
+    dest: "{{ kafka_config }}"
+    owner: "{{ kafka_user }}"
+    group: "{{ kafka_group }}"
+    mode: '0640'
+  notify: Restart Kafka
+
+- name: Check whether Kafka storage is already initialized
+  become: true
+  ansible.builtin.stat:
+    path: "{{ kafka_data_dir }}/meta.properties"
+  register: kafka_storage_meta
+
+- name: Generate Kafka cluster ID
+  become: true
+#  become_user: "{{ kafka_user }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ kafka_home }}/bin/kafka-storage.sh"
+      - random-uuid
+  register: kafka_cluster_id
+  changed_when: false
+  when: not kafka_storage_meta.stat.exists
+  
+- name: Format Kafka KRaft storage
+  become: true
+  #become_user: "{{ kafka_user }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ kafka_home }}/bin/kafka-storage.sh"
+      - format
+      - --standalone
+      - -t
+      - "{{ kafka_cluster_id.stdout | trim }}"
+      - -c
+      - "{{ kafka_config }}"
+    creates: "{{ kafka_data_dir }}/meta.properties"
+  when: not kafka_storage_meta.stat.exists
+
+- name: Deploy Kafka systemd service
+  become: true
+  ansible.builtin.template:
+    src: kafka.service.j2
+    dest: /etc/systemd/system/kafka.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Kafka
+
+- name: Ensure Kafka data ownership recursively
+  become: true
+  ansible.builtin.file:
+    path: "{{ kafka_data_dir }}"
+    state: directory
+    owner: "{{ kafka_user }}"
+    group: "{{ kafka_group }}"
+    recurse: true
+
+- name: Enable and start Kafka service
+  become: true
+  ansible.builtin.systemd_service:
+    name: kafka
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Verify Kafka broker responds
+  become: true
+  ansible.builtin.command:
+    argv:
+      - "{{ kafka_home }}/bin/kafka-broker-api-versions.sh"
+      - --bootstrap-server
+      - localhost:9092
+  register: kafka_api_check
+  changed_when: false
+  retries: 10
+  delay: 3
+  until: kafka_api_check.rc == 0

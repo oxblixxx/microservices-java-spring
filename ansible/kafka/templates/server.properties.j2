@@ -1,0 +1,27 @@
+process.roles=broker,controller
+node.id={{ kafka_node_id }}
+
+inter.broker.listener.name=PLAINTEXT
+
+controller.quorum.bootstrap.servers={{ kafka_controller_address }}
+
+listeners=DOCKER://0.0.0.0:9092,EXTERNAL://0.0.0.0:9094,CONTROLLER://{{ kafka_controller_listener.split(':')[-2] }}:{{ kafka_controller_listener.split(':')[-1] }}
+
+advertised.listeners=DOCKER://{{ kafka_docker_advertised_listener }},EXTERNAL://{{ kafka_external_advertised_listener }}
+
+listener.security.protocol.map=DOCKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+
+inter.broker.listener.name=DOCKER
+controller.listener.names=CONTROLLER
+
+log.dirs={{ kafka_data_dir }}
+
+
+# Network request handling
+num.network.threads=1
+
+# Request processing and I/O
+num.io.threads=2
+
+# Startup recovery
+num.recovery.threads.per.data.dir=1
