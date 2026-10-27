@@ -1,0 +1,101 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Ensure APT keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download official NGINX signing key
+  ansible.builtin.get_url:
+    url: "{{ nginx_signing_key_url }}"
+    dest: /tmp/nginx_signing.key
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+
+- name: Convert NGINX signing key to binary keyring
+  ansible.builtin.command:
+    cmd: >-
+      gpg --dearmor
+      --output {{ nginx_signing_keyring }}
+      /tmp/nginx_signing.key
+    creates: "{{ nginx_signing_keyring }}"
+
+- name: Set NGINX keyring permissions
+  ansible.builtin.file:
+    path: "{{ nginx_signing_keyring }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Inspect NGINX signing key fingerprints
+  ansible.builtin.command:
+    cmd: >-
+      gpg --batch --no-default-keyring
+      --keyring {{ nginx_signing_keyring }}
+      --with-colons --fingerprint
+  register: nginx_key_fingerprints
+  changed_when: false
+
+- name: Verify expected NGINX signing key fingerprint
+  ansible.builtin.assert:
+    that:
+      - nginx_signing_fingerprint in nginx_key_fingerprints.stdout
+    fail_msg: >-
+      The NGINX signing key does not contain the expected fingerprint.
+      Refusing to configure the repository.
+    success_msg: NGINX signing key fingerprint verified.
+
+- name: Configure NGINX APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by={{ nginx_signing_keyring }}]
+      https://nginx.org/packages/{{
+        'mainline/' if nginx_repository_channel == 'mainline' else ''
+      }}{{ nginx_repository_os }} {{ ansible_distribution_release }} nginx
+    filename: nginx
+    state: present
+    update_cache: false
+  register: nginx_repository_result
+
+- name: Configure APT pinning for NGINX packages
+  ansible.builtin.copy:
+    dest: "{{ nginx_repository_preferences }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Package: nginx*
+      Pin: origin nginx.org
+      Pin: release o=nginx
+      Pin-Priority: 900
+
+- name: Update APT cache after repository configuration
+  ansible.builtin.apt:
+    update_cache: true
+  when: nginx_repository_result.changed
+
+- name: Ensure NGINX is installed
+  ansible.builtin.apt:
+    name: "{{ nginx_package_name }}"
+    state: present
+    update_cache: true
+
+- name: Ensure NGINX service is running and enabled at boot
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
