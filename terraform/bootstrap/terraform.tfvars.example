@@ -7,10 +7,10 @@ cost_center = "engineering"
 region    = "eu-west-1"
 
 state_buckets = {
-  bootstrap = {
-    name          = "REPLACE-ME-terraform-state-bootstrap"
-    force_destroy = false
-  }
+#  bootstrap = {
+#    name          = "REPLACE-ME-terraform-state-bootstrap"
+#    force_destroy = false
+#  }
   staging = {
     name          = "REPLACE-ME-terraform-state-staging"
     force_destroy = false

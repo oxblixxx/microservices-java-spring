@@ -16,39 +16,39 @@ locals {
 # KMS key used to encrypt every Terraform state object (all environments).
 # ---------------------------------------------------------------------------
 
-resource "aws_kms_key" "state" {
-  count = var.create_state_kms_key ? 1 : 0
+# resource "aws_kms_key" "state" {
+#   count = var.create_state_kms_key ? 1 : 0
 
-  description             = "Terraform remote state encryption for ${var.project}"
-  deletion_window_in_days = var.kms_deletion_window_in_days
-  enable_key_rotation     = true
-  policy                  = data.aws_iam_policy_document.state[0].json
+#   description             = "Terraform remote state encryption for ${var.project}"
+#   deletion_window_in_days = var.kms_deletion_window_in_days
+#   enable_key_rotation     = true
+#   policy                  = data.aws_iam_policy_document.state[0].json
 
-  tags = merge(local.common_tags, { Name = "${var.project}-terraform-state" })
-}
+#   tags = merge(local.common_tags, { Name = "${var.project}-terraform-state" })
+# }
 
-resource "aws_kms_alias" "state" {
-  count = var.create_state_kms_key ? 1 : 0
+# resource "aws_kms_alias" "state" {
+#   count = var.create_state_kms_key ? 1 : 0
 
-  name          = "alias/${var.project}-terraform-state"
-  target_key_id = aws_kms_key.state[0].key_id
-}
+#   name          = "alias/${var.project}-terraform-state"
+#   target_key_id = aws_kms_key.state[0].key_id
+# }
 
-data "aws_iam_policy_document" "state" {
-  count = var.create_state_kms_key ? 1 : 0
+# data "aws_iam_policy_document" "state" {
+#   count = var.create_state_kms_key ? 1 : 0
 
-  statement {
-    sid       = "EnableRootAccountAdmin"
-    effect    = "Allow"
-    actions   = ["kms:*"]
-    resources = ["*"]
+#   statement {
+#     sid       = "EnableRootAccountAdmin"
+#     effect    = "Allow"
+#     actions   = ["kms:*"]
+#     resources = ["*"]
 
-    principals {
-      type        = "AWS"
-      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
-    }
-  }
-}
+#     principals {
+#       type        = "AWS"
+#       identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+#     }
+#   }
+# }
 
 # ---------------------------------------------------------------------------
 # S3 state buckets: one per environment (bootstrap, staging, production).
@@ -75,19 +75,19 @@ resource "aws_s3_bucket_versioning" "state" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
-  for_each = var.state_buckets
+# resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
+#   for_each = var.state_buckets
 
-  bucket = aws_s3_bucket.state[each.key].id
+#   bucket = aws_s3_bucket.state[each.key].id
 
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = var.create_state_kms_key ? "aws:kms" : "AES256"
-      kms_master_key_id = var.create_state_kms_key ? aws_kms_key.state[0].arn : null
-    }
-    bucket_key_enabled = var.create_state_kms_key
-  }
-}
+#   rule {
+#     apply_server_side_encryption_by_default {
+#       sse_algorithm     = var.create_state_kms_key ? "aws:kms" : "AES256"
+#       kms_master_key_id = var.create_state_kms_key ? aws_kms_key.state[0].arn : null
+#     }
+#     bucket_key_enabled = var.create_state_kms_key
+#   }
+# }
 
 resource "aws_s3_bucket_public_access_block" "state" {
   for_each = var.state_buckets

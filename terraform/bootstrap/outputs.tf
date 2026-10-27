@@ -8,15 +8,15 @@ output "state_bucket_arns" {
   value       = { for k, v in aws_s3_bucket.state : k => v.arn }
 }
 
-output "state_kms_key_arn" {
-  description = "ARN of the state encryption KMS key, if created."
-  value       = try(aws_kms_key.state[0].arn, null)
-}
+# output "state_kms_key_arn" {
+#   description = "ARN of the state encryption KMS key, if created."
+#   value       = try(aws_kms_key.state[0].arn, null)
+# }
 
-output "state_kms_alias" {
-  description = "Alias of the state encryption KMS key, if created."
-  value       = try(aws_kms_alias.state[0].name, null)
-}
+# output "state_kms_alias" {
+#   description = "Alias of the state encryption KMS key, if created."
+#   value       = try(aws_kms_alias.state[0].name, null)
+# }
 
 output "github_oidc_provider_arn" {
   description = "ARN of the GitHub Actions OIDC provider, if created."
