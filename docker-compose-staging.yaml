@@ -34,7 +34,6 @@ services:
 
     networks:
       - backend-api
-      - signoz-network
 
     depends_on:
       auth-service:
@@ -100,7 +99,6 @@ services:
 
     networks:
       - backend-api
-      - signoz-network
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/actuator/health"]
@@ -151,7 +149,6 @@ services:
 
     networks:
       - backend-api
-      - signoz-network
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4005/actuator/health"]
@@ -195,7 +192,6 @@ services:
 
     networks:
       - backend-api
-      - signoz-network
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
@@ -234,7 +230,6 @@ services:
 
     networks:
       - backend-api
-      - signoz-network
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4001/actuator/health"]
